@@ -1,197 +1,289 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
-
+    android:background="?attr/colorSurface"
     tools:context=".MainActivity">
 
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/viewPager"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
     <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/topBar"
-        android:paddingBottom="3dp"
+        android:id="@+id/playerBottomSheet"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:layout_constraintBottom_toTopOf="@id/mainscreen"
-        >
+        android:layout_height="match_parent"
+        android:background="@drawable/bottom_sheet_background"
+        android:elevation="8dp"
+        app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
+        app:behavior_peekHeight="80dp"
+        app:behavior_hideable="false">
 
-        <androidx.appcompat.widget.SearchView
-            android:id="@+id/searchView"
-            android:layout_width="wrap_content"
-            android:layout_height="35dp"
-            android:layout_marginStart="16dp"
-            android:layout_marginTop="3dp"
-            android:background="@drawable/search_view_bg"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:queryHint="Search Here ..." />
+        <!-- Mini Player (Collapsed State) -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/miniPlayerLayout"
+            android:layout_width="match_parent"
+            android:layout_height="80dp"
+            android:padding="12dp"
+            app:layout_constraintTop_toTopOf="parent">
 
-        <androidx.appcompat.widget.ActionMenuView
-            android:id="@+id/menuBtn"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/menu_icon"
-            android:layout_marginEnd="16dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintHorizontal_bias="0.5"
-            app:layout_constraintTop_toTopOf="parent"
-            />
+            <com.google.android.material.imageview.ShapeableImageView
+                android:id="@+id/album_art"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:scaleType="centerCrop"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:shapeAppearance="@style/ShapeAppearance.Material3.Corner.Large" />
 
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/textViewTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+                app:layout_constraintEnd_toStartOf="@+id/btn_play_pause"
+                app:layout_constraintStart_toEndOf="@+id/album_art"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toTopOf="@+id/textViewArtist"
+                tools:text="Song Title" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/textViewArtist"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                app:layout_constraintEnd_toStartOf="@+id/btn_play_pause"
+                app:layout_constraintStart_toEndOf="@+id/album_art"
+                app:layout_constraintTop_toBottomOf="@+id/textViewTitle"
+                app:layout_constraintBottom_toBottomOf="parent"
+                tools:text="Artist Name" />
+
+            <ImageButton
+                android:id="@+id/btn_play_pause"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:padding="12dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/play_icon"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:tint="?attr/colorOnSurface" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <!-- Expanded Player -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/expandedLayout"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:visibility="gone"
+            app:layout_constraintTop_toBottomOf="@id/miniPlayerLayout"
+            app:layout_constraintBottom_toBottomOf="parent">
+
+            <!-- Back Button and More Options -->
+            <LinearLayout
+                android:id="@+id/expandedHeader"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="24dp"
+                android:paddingTop="16dp"
+                app:layout_constraintTop_toTopOf="parent">
+
+                <ImageButton
+                    android:id="@+id/backButton"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/chevron_down"
+                    app:tint="?attr/colorOnSurface" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
+
+                <ImageButton
+                    android:id="@+id/moreOptionsButton"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/more_vert"
+                    app:tint="?attr/colorOnSurface" />
+            </LinearLayout>
+
+            <!-- Album Art Container -->
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:id="@+id/albumArtContainer"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="24dp"
+                app:layout_constraintTop_toBottomOf="@id/expandedHeader"
+                app:layout_constraintBottom_toTopOf="@id/songInfoContainer">
+
+                <com.google.android.material.imageview.ShapeableImageView
+                    android:id="@+id/expandedAlbumArt"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:layout_marginHorizontal="24dp"
+                    android:scaleType="centerCrop"
+                    app:layout_constraintDimensionRatio="1:1"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:shapeAppearance="@style/ShapeAppearance.Material3.Corner.ExtraLarge"
+                    tools:src="@drawable/default_album_art" />
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
+
+            <!-- Song Info -->
+            <LinearLayout
+                android:id="@+id/songInfoContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingHorizontal="24dp"
+                app:layout_constraintBottom_toTopOf="@id/progressContainer">
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/expandedTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="@style/TextAppearance.Material3.HeadlineSmall"
+                    tools:text="On the ground" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/expandedArtist"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    tools:text="Rosé • Blackpink first album" />
+            </LinearLayout>
+
+            <!-- Progress Container -->
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:id="@+id/progressContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="24dp"
+                android:layout_marginTop="24dp"
+                app:layout_constraintBottom_toTopOf="@id/controlsContainer">
+
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/progressSlider"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:layout_constraintTop_toTopOf="parent" />
+
+                <TextView
+                    android:id="@+id/currentTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toBottomOf="@id/progressSlider"
+                    tools:text="1:20" />
+
+                <TextView
+                    android:id="@+id/totalTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintTop_toTopOf="@id/currentTime"
+                    tools:text="3:09" />
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
+
+            <!-- Controls -->
+            <LinearLayout
+                android:id="@+id/controlsContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:paddingHorizontal="24dp"
+                android:paddingVertical="32dp"
+                app:layout_constraintBottom_toBottomOf="parent">
+
+                <ImageButton
+                    android:id="@+id/shuffleButtonExpanded"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/shuffle_icon"
+                    app:tint="?attr/colorOnSurfaceVariant" />
+
+                <ImageButton
+                    android:id="@+id/previousButton"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="24dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/skip_previous"
+                    app:tint="?attr/colorOnSurface" />
+
+                <com.google.android.material.floatingactionbutton.FloatingActionButton
+                    android:id="@+id/playPauseButtonExpanded"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:layout_marginHorizontal="24dp"
+                    android:src="@drawable/pause_icon"
+                    app:fabSize="normal"
+                    app:tint="?attr/colorOnPrimary" />
+
+                <ImageButton
+                    android:id="@+id/nextButton"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginEnd="24dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/skip_next"
+                    app:tint="?attr/colorOnSurface" />
+
+                <ImageButton
+                    android:id="@+id/repeatButton"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/repeat"
+                    app:tint="?attr/colorOnSurfaceVariant" />
+
+            </LinearLayout>
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <androidx.coordinatorlayout.widget.CoordinatorLayout
-        android:id="@+id/mainscreen"
-        android:layout_marginTop="40dp"
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNavigation"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:visibility="visible"
+        app:layout_behavior="@string/hide_bottom_view_on_scroll_behavior"
+        app:menu="@menu/bottom_nav_menu"
+        style="@style/Widget.Material3.BottomNavigationView" />
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/musicRecyclerView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="?android:attr/selectableItemBackground"
-            android:clickable="true"
-            android:focusable="true"
-            android:orientation="vertical"
-            android:padding="8dp"
-            android:layout_below="@+id/topBar" />
-
-
-
-        <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-            android:id="@+id/shuffleButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|end"
-            android:layout_margin="16dp"
-            android:contentDescription="@string/shuffle"
-
-
-            app:icon="@drawable/shuffle_off_icon"
-            app:iconTint="#FFF"
-            android:textColor="#FFF"
-            app:layout_anchor="@id/musicRecyclerView"
-            app:layout_anchorGravity="bottom|end"
-            app:layout_insetEdge="bottom"
-            app:layout_scrollFlags="scroll|enterAlways"
-            app:iconSize="32dp"
-
-            />
-
-
-
-    </androidx.coordinatorlayout.widget.CoordinatorLayout>
-
-
-
-
-
-
-    <androidx.cardview.widget.CardView
-        android:id="@+id/bottomCardView"
-        android:layout_width="match_parent"
-        android:layout_height="63dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        app:cardCornerRadius="8dp"
-        app:cardElevation="8dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginBottom="1dp"
-        android:clickable="true"
-        android:focusable="true">
-
-        <RelativeLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:padding="6dp">
-
-            <!-- Album Art Image -->
-            <androidx.cardview.widget.CardView
-                android:id="@+id/album_art_container"
-                android:layout_width="60dp"
-                android:layout_height="70dp"
-                app:cardCornerRadius="5dp"
-
-                >
-                <ImageView
-                    android:id="@+id/album_art"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:src="@drawable/music_note_icon"
-                    android:layout_centerVertical="true"
-                    android:layout_alignParentStart="true"
-                    android:scaleType="centerCrop" />
-            </androidx.cardview.widget.CardView>
-
-
-            <!-- Song Details -->
-            <TextView
-                android:id="@+id/textViewTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="9dp"
-                android:layout_toEndOf="@id/album_art_container"
-                android:textColor="#fff"
-                android:textStyle="bold"
-                android:layout_marginStart="16dp"
-                android:layout_marginEnd="16dp"
-                android:text="Song Title"
-
-                android:maxLines="1"
-                android:ellipsize="end" />
-
-            <TextView
-                android:id="@+id/textViewArtist"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@id/textViewTitle"
-                android:layout_toEndOf="@id/album_art_container"
-                android:textColor="#CAC4C4"
-                android:layout_marginStart="16dp"
-                android:layout_marginEnd="16dp"
-                android:text="Artist Name"
-                android:maxLines="1"
-                android:ellipsize="end" />
-
-            <!-- Play/Pause Button -->
-            <ImageView
-                android:id="@+id/btn_play_pause"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:src="@drawable/play_icon"
-                android:layout_centerVertical="true"
-                android:layout_alignParentEnd="true"
-                android:clickable="true"
-                 />
-        </RelativeLayout>
-
-        <!-- Linear Progress Indicator -->
-        <ProgressBar
-            android:id="@+id/media_player_bar_progress_indicator"
-            android:progressTint="#fff"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:layout_marginTop="60dp"
-            app:layout_constraintTop_toBottomOf="@id/bottomCardView"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
-
-    </androidx.cardview.widget.CardView>
-
-
-
-
-
-
-
-
-
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
