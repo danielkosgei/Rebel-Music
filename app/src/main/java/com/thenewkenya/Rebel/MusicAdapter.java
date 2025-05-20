@@ -2,6 +2,7 @@ package com.thenewkenya.Rebel;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.net.Uri;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -33,12 +34,12 @@ public class MusicAdapter extends RecyclerView.Adapter<MusicAdapter.MyViewHolder
     }
 
     public void setFilteredList(List<MusicList> filteredList) {
-        this.list = filteredList;
-
+        if (filteredList == null) {
+            return;
+        }
+        this.list = new ArrayList<>(filteredList);
         notifyDataSetChanged();
-
     }
-
 
     public MusicAdapter(List<MusicList> list, Context context) {
         this.list = list;
@@ -55,53 +56,76 @@ public class MusicAdapter extends RecyclerView.Adapter<MusicAdapter.MyViewHolder
     @NonNull
     @Override
     public void onBindViewHolder(@NonNull MusicAdapter.MyViewHolder holder, @SuppressLint("RecyclerView") int position) {
-        MusicList list2 = list.get(position);
-
-        if(list2.isPlaying()) {
-            playingPosition = position;
-            //holder.rootLayout.setBackgroundResource(R.drawable.round_back_blue_10);
-        } else {
-            //holder.rootLayout.setBackgroundResource(R.drawable.round_back_10);
+        if (holder == null || position < 0 || position >= list.size()) {
+            return;
         }
 
-        String generationDuration = String.format(Locale.getDefault(), "%02d:%02d", TimeUnit.MILLISECONDS.toMinutes(Long.parseLong(list2.getDuration())), TimeUnit.MILLISECONDS.toSeconds(Long.parseLong(list2.getDuration())) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(Long.parseLong(list2.getDuration()))));
-        holder.title.setText(list2.getTitle());
-        holder.artist.setText(list2.getArtist());
-        holder.musicDuration.setText(generationDuration);
-        holder.albumArt.setImageURI(list2.getAlbumArt());
+        MusicList musicList = list.get(position);
+        if (musicList == null) {
+            return;
+        }
 
-        holder.itemView.setOnClickListener(v -> {
-            //((MainActivity)
-            //v.getContext()).updateBottomCardView(list2);
-        });
+        if (musicList.isPlaying()) {
+            playingPosition = position;
+        }
 
+        try {
+            String duration = musicList.getDuration();
+            long durationMs = duration != null ? Long.parseLong(duration) : 0;
+            String formattedDuration = String.format(Locale.getDefault(), "%02d:%02d",
+                TimeUnit.MILLISECONDS.toMinutes(durationMs),
+                TimeUnit.MILLISECONDS.toSeconds(durationMs) -
+                TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(durationMs)));
 
-        holder.rootLayout.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                list.get(playingPosition).setPlaying(false);
-                list2.setPlaying(true);
+            holder.title.setText(musicList.getTitle());
+            holder.artist.setText(musicList.getArtist());
+            holder.musicDuration.setText(formattedDuration);
+            
+            // Handle album art loading with fallback
+            Uri albumArtUri = musicList.getAlbumArt();
+            if (albumArtUri != null) {
+                holder.albumArt.setImageURI(albumArtUri);
+                // Set fallback if the image fails to load
+                if (holder.albumArt.getDrawable() == null) {
+                    holder.albumArt.setImageResource(R.drawable.default_album_art);
+                }
+            } else {
+                holder.albumArt.setImageResource(R.drawable.default_album_art);
+            }
 
-                songChangeListener.onChanged(position);
+            holder.rootLayout.setOnClickListener(v -> {
+                if (playingPosition != -1 && playingPosition < list.size()) {
+                    list.get(playingPosition).setPlaying(false);
+                }
+                musicList.setPlaying(true);
+                playingPosition = position;
+
+                if (songChangeListener != null) {
+                    songChangeListener.onChanged(position);
+                }
 
                 notifyDataSetChanged();
-            }
-        });
+            });
+        } catch (NumberFormatException e) {
+            e.printStackTrace();
+            holder.musicDuration.setText("00:00");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
-
-
-    public void updateList(List<MusicList> List) {
-        this.list = list;
+    public void updateList(List<MusicList> newList) {
+        if (newList == null) {
+            return;
+        }
+        this.list = new ArrayList<>(newList); // Create a new copy to avoid concurrent modification
         notifyDataSetChanged();
     }
 
     @Override
     public int getItemCount() {
-        return list.size();
+        return list != null ? list.size() : 0;
     }
-
-
 
     static class MyViewHolder extends RecyclerView.ViewHolder {
 
@@ -123,8 +147,6 @@ public class MusicAdapter extends RecyclerView.Adapter<MusicAdapter.MyViewHolder
                 @Override
                 public void onClick(View view) {
                     songChangeListener.onChanged(getAdapterPosition());
-
-
                 }
             });
         }

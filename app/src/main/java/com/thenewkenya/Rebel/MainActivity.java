@@ -100,6 +100,7 @@ public class MainActivity extends AppCompatActivity implements SongChangeListene
 
     private GestureDetectorCompat gestureDetector;
 
+    private final Object mediaPlayerLock = new Object();
 
     // start here
     @Override
@@ -288,7 +289,6 @@ public class MainActivity extends AppCompatActivity implements SongChangeListene
                 MediaStore.Audio.Media.DURATION,  // error from android side, it works < 29
                 MediaStore.Audio.Media.ALBUM_ID,
                 MediaStore.Audio.Media.ALBUM,
-
                 MediaStore.Audio.Media._ID,
                 MediaStore.Audio.Media.DATE_MODIFIED,
                 MediaStore.Audio.Media.DATA
@@ -298,71 +298,74 @@ public class MainActivity extends AppCompatActivity implements SongChangeListene
                 MediaStore.Audio.Media.DATA + " LIKE '%.flac')";
         String sortOrder = MediaStore.Audio.Media.DEFAULT_SORT_ORDER;
 
-        Cursor cursor = contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, selection, null, sortOrder);
-        int albumIdInd = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID);
-        int albumInd = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM);
+        Cursor cursor = null;
+        try {
+            cursor = contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, selection, null, sortOrder);
+            
+            if(cursor == null) {
+                Toast.makeText(this, "Something went wrong!", Toast.LENGTH_SHORT).show();
+                return;
+            } 
+            
+            if (!cursor.moveToFirst()) {
+                Toast.makeText(this, "No Music Found", Toast.LENGTH_SHORT).show();
+                return;
+            }
 
-        if(cursor == null) {
-            Toast.makeText(this, "Something went wrong!", Toast.LENGTH_SHORT).show();
-        } else if (!cursor.moveToNext()) {
-            Toast.makeText(this, "No Music Found", Toast.LENGTH_SHORT).show();
-        } else {
-
-            while(cursor.moveToNext()) {
-                @SuppressLint("Range") final String getMusicFileName = cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.TITLE));
-                @SuppressLint("Range") final String getArtistName = cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST));
-                @SuppressLint("Range") long cursorId = cursor.getLong(cursor.getColumnIndex(MediaStore.Audio.Media._ID));
+            musicLists.clear(); // Clear existing list before adding new items
+            
+            do {
+                int albumIdInd = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID);
+                int albumInd = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM);
+                
+                final String getMusicFileName = cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.TITLE));
+                final String getArtistName = cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST));
+                long cursorId = cursor.getLong(cursor.getColumnIndex(MediaStore.Audio.Media._ID));
                 String album = cursor.getString(albumInd);
                 Uri musicFileUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, cursorId);
 
                 long albumId = cursor.getLong(albumIdInd);
-                Uri albumArt = Uri.parse("");
-                albumArt = ContentUris.withAppendedId(Uri.parse(getResources().getString(R.string.album_art_dir)), albumId);
+                Uri albumArt = ContentUris.withAppendedId(Uri.parse(getResources().getString(R.string.album_art_dir)), albumId);
+                
                 String getDuration = "00:00";
-
-                Uri albumart = albumArt;
-
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     getDuration = cursor.getString(cursor.getColumnIndex(MediaStore.Audio.AudioColumns.DURATION));
                 }
 
-
-                final MusicList musicList = new MusicList(getMusicFileName, getArtistName, getDuration, false, musicFileUri, albumArt);
+                final MusicList musicList = new MusicList(
+                    getMusicFileName != null ? getMusicFileName : "Unknown Title",
+                    getArtistName != null ? getArtistName : "Unknown Artist",
+                    getDuration,
+                    false,
+                    musicFileUri,
+                    albumArt
+                );
                 musicLists.add(musicList);
-                shuffleButton.setText(String.valueOf(musicLists.size()));
+                
+            } while(cursor.moveToNext());
 
+            if (shuffleButton != null) {
+                shuffleButton.setText(String.valueOf(musicLists.size()));
             }
 
             musicAdapter = new MusicAdapter(musicLists, MainActivity.this);
-
-            musicRecyclerView.setAdapter(musicAdapter);
+            if (musicRecyclerView != null) {
+                musicRecyclerView.setAdapter(musicAdapter);
+            }
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(this, "Error loading music files", Toast.LENGTH_SHORT).show();
+        } finally {
+            if (cursor != null && !cursor.isClosed()) {
+                cursor.close();
+            }
         }
-        assert cursor != null;
-        cursor.close();
     }
 
     void updateBottomCardView(MusicList musicList) {
-
-        Uri uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
-
-        String[] projection = {
-                MediaStore.Audio.Media._ID,
-                MediaStore.Audio.Media.TITLE,
-                MediaStore.Audio.Media.ARTIST,
-                MediaStore.Audio.Media.ALBUM_ID
-        };
-
-        Cursor cursor = getContentResolver().query(uri, projection, null, null, null);
-
-        if (cursor != null) {
-            while (cursor.moveToNext()) {
-                @SuppressLint("Range") long albumId = cursor.getLong(cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID));
-
-                Uri albumArtUri = ContentUris.withAppendedId(Uri.parse(getResources().getString(R.string.album_art_dir)), albumId);
-
-
-            }
-            cursor.close();
+        if (musicList == null || bottomCardView == null) {
+            return;
         }
 
         bottomCardView.setVisibility(View.VISIBLE);
@@ -372,80 +375,148 @@ public class MainActivity extends AppCompatActivity implements SongChangeListene
         TextView textViewArtist = bottomCardView.findViewById(R.id.textViewArtist);
         ImageView btn_play_pause = bottomCardView.findViewById(R.id.btn_play_pause);
 
-
-        textViewTitle.setText(musicList.getTitle());
-        textViewArtist.setText(musicList.getArtist());
-        album_art.setImageURI(musicList.getAlbumArt());
+        if (textViewTitle != null) {
+            textViewTitle.setText(musicList.getTitle());
+        }
+        if (textViewArtist != null) {
+            textViewArtist.setText(musicList.getArtist());
+        }
+        if (album_art != null) {
+            Uri albumArtUri = musicList.getAlbumArt();
+            if (albumArtUri != null) {
+                album_art.setImageURI(albumArtUri);
+                // Set a fallback for when the image fails to load
+                if (album_art.getDrawable() == null) {
+                    album_art.setImageResource(R.drawable.default_album_art);
+                }
+            } else {
+                album_art.setImageResource(R.drawable.default_album_art);
+            }
+        }
 
         performColorExtraction(musicList.getAlbumArt());
 
-        btn_play_pause.setOnClickListener(view -> {
-            if (isPlaying) {
-                pausePlayback();
-            } else {
-                startPlayback();
-            }
-        });
-
-
+        if (btn_play_pause != null) {
+            btn_play_pause.setOnClickListener(view -> {
+                if (isPlaying) {
+                    pausePlayback();
+                } else {
+                    startPlayback();
+                }
+            });
+        }
     }
 
-    private void performColorExtraction(Uri albumArtUri) {
-        try {
-            InputStream inputStream = getContentResolver().openInputStream(albumArtUri);
-            Bitmap albumArtBitmap = BitmapFactory.decodeStream(inputStream);
-            inputStream.close();
-
-            Palette.from(albumArtBitmap).generate(palette -> {
-                int defaultColor = ContextCompat.getColor(this, com.google.android.material.R.color.material_dynamic_neutral_variant0);
-                assert palette != null;
-                int darkMutedColor = palette.getDarkMutedColor(defaultColor);
-                int mutedColor = palette.getMutedColor(defaultColor);
-
-
-                shuffleButton.setBackgroundTintList(ColorStateList.valueOf(mutedColor));
-                bottomCardView.setCardBackgroundColor(darkMutedColor);
-            });
-        } catch (IOException e) {
-            e.printStackTrace();
+    private void updateProgressBar() {
+        if (mediaPlayer != null && progressBar != null) {
+            try {
+                int currentPosition = mediaPlayer.getCurrentPosition();
+                progressBar.setProgress(currentPosition);
+            } catch (IllegalStateException e) {
+                e.printStackTrace();
+            }
         }
     }
 
     Handler handler = new Handler();
-
-    Runnable updateLinearProgressIndicator = new Runnable() {
+    Runnable updateProgressRunnable = new Runnable() {
         @Override
         public void run() {
-            ProgressBar progressBar = findViewById(R.id.media_player_bar_progress_indicator);
-            //LinearProgressIndicator media_player_bar_progress_indicator = findViewById(R.id.media_player_bar_progress_indicator);
-            int currentPosition = mediaPlayer.getCurrentPosition();
-            progressBar.setProgress(currentPosition);
-
-            handler.postDelayed(this, 1000);
+            if (isPlaying) {
+                updateProgressBar();
+                handler.postDelayed(this, 100); // Update every 100ms for smoother progress
+            }
         }
     };
+
     private void startUpdatingProgressBar() {
-        handler.postDelayed(updateLinearProgressIndicator, 0);
+        handler.removeCallbacks(updateProgressRunnable);
+        handler.post(updateProgressRunnable);
     }
 
     private void stopUpdatingProgressBar() {
-        handler.removeCallbacks(updateLinearProgressIndicator);
+        handler.removeCallbacks(updateProgressRunnable);
+    }
+
+    private void performColorExtraction(Uri albumArtUri) {
+        if (albumArtUri == null) {
+            // Use default colors if no album art
+            if (shuffleButton != null) {
+                shuffleButton.setBackgroundTintList(ColorStateList.valueOf(getResources().getColor(com.google.android.material.R.color.material_dynamic_neutral_variant30)));
+            }
+            if (bottomCardView != null) {
+                bottomCardView.setCardBackgroundColor(getResources().getColor(com.google.android.material.R.color.material_dynamic_neutral_variant20));
+            }
+            return;
+        }
+
+        try {
+            InputStream inputStream = getContentResolver().openInputStream(albumArtUri);
+            if (inputStream != null) {
+                Bitmap albumArtBitmap = BitmapFactory.decodeStream(inputStream);
+                inputStream.close();
+
+                if (albumArtBitmap != null) {
+                    Palette.from(albumArtBitmap).generate(palette -> {
+                        if (palette != null) {
+                            int defaultColor = ContextCompat.getColor(this, com.google.android.material.R.color.material_dynamic_neutral_variant0);
+                            int darkMutedColor = palette.getDarkMutedColor(defaultColor);
+                            int mutedColor = palette.getMutedColor(defaultColor);
+
+                            if (shuffleButton != null) {
+                                shuffleButton.setBackgroundTintList(ColorStateList.valueOf(mutedColor));
+                            }
+                            if (bottomCardView != null) {
+                                bottomCardView.setCardBackgroundColor(darkMutedColor);
+                            }
+                        }
+                    });
+                }
+            }
+        } catch (IOException | SecurityException e) {
+            e.printStackTrace();
+            // Use default colors on error
+            if (shuffleButton != null) {
+                shuffleButton.setBackgroundTintList(ColorStateList.valueOf(getResources().getColor(com.google.android.material.R.color.material_dynamic_neutral_variant30)));
+            }
+            if (bottomCardView != null) {
+                bottomCardView.setCardBackgroundColor(getResources().getColor(com.google.android.material.R.color.material_dynamic_neutral_variant20));
+            }
+        }
     }
 
     private void startPlayback() {
-        startUpdatingProgressBar();
-        ImageView btn_play_pause = bottomCardView.findViewById(R.id.btn_play_pause);
-        mediaPlayer.start();
-        isPlaying = true;
-        btn_play_pause.setImageResource(R.drawable.pause_icon);
+        synchronized (mediaPlayerLock) {
+            if (mediaPlayer != null) {
+                startUpdatingProgressBar();
+                ImageView btn_play_pause = bottomCardView.findViewById(R.id.btn_play_pause);
+                try {
+                    mediaPlayer.start();
+                    isPlaying = true;
+                    btn_play_pause.setImageResource(R.drawable.pause_icon);
+                } catch (IllegalStateException e) {
+                    e.printStackTrace();
+                    Toast.makeText(this, "Error starting playback", Toast.LENGTH_SHORT).show();
+                }
+            }
+        }
     }
 
     private void pausePlayback() {
-        stopUpdatingProgressBar();
-        ImageView btn_play_pause = bottomCardView.findViewById(R.id.btn_play_pause);
-        mediaPlayer.pause();
-        isPlaying = false;
-        btn_play_pause.setImageResource(R.drawable.play_icon);
+        synchronized (mediaPlayerLock) {
+            if (mediaPlayer != null && isPlaying) {
+                stopUpdatingProgressBar();
+                ImageView btn_play_pause = bottomCardView.findViewById(R.id.btn_play_pause);
+                try {
+                    mediaPlayer.pause();
+                    isPlaying = false;
+                    btn_play_pause.setImageResource(R.drawable.play_icon);
+                } catch (IllegalStateException e) {
+                    e.printStackTrace();
+                    Toast.makeText(this, "Error pausing playback", Toast.LENGTH_SHORT).show();
+                }
+            }
+        }
     }
 
 
@@ -454,129 +525,77 @@ public class MainActivity extends AppCompatActivity implements SongChangeListene
 
     @Override
     public void onChanged(int position) {
-
-        ImageView btn_play_pause = bottomCardView.findViewById(R.id.btn_play_pause);
-        startUpdatingProgressBar();
-        btn_play_pause.setImageResource(R.drawable.pause_icon);
-
-
-        if (position >=0 && position < musicLists.size()) {
-            new Thread(() -> {
-                MusicList musicList = musicLists.get(position);
-                runOnUiThread(() -> {
-                    updateBottomCardView(musicList);
-                });
-            }).start();
-
-
-
-        }
-
-        progressBar = findViewById(R.id.media_player_bar_progress_indicator);
-
-
-
-
-        currentSongListPosition = position;
-
-
-        mediaPlayer.reset();
-
-        mediaPlayer.setAudioAttributes(
-                new AudioAttributes
-                        .Builder()
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                        .build());
-
-
-
-        new Thread(() -> {
-            while(mediaPlayer.isPlaying()) {
-                int currentPosition = mediaPlayer.getCurrentPosition();
-                runOnUiThread(() -> {
-                    progressBar.setProgress(currentPosition);
-                });
+        synchronized (mediaPlayerLock) {
+            if (position < 0 || position >= musicLists.size()) {
+                return;
             }
-            try {
-                mediaPlayer.setDataSource(MainActivity.this, musicLists.get(position).getMusicFile());
-                mediaPlayer.prepareAsync();
-            } catch (IOException e) {
-                e.printStackTrace();
-                Toast.makeText(MainActivity.this, "Unable to play track", Toast.LENGTH_SHORT).show();
-            }
-        }).start();
 
-        mediaPlayer.setOnPreparedListener(mp -> {
-            progressBar.setMax(mediaPlayer.getDuration());
-            final int getTotalDuration = mp.getDuration();
+            ImageView btn_play_pause = bottomCardView.findViewById(R.id.btn_play_pause);
+            startUpdatingProgressBar();
+            btn_play_pause.setImageResource(R.drawable.pause_icon);
 
-            String generateDuration = String.format(Locale.getDefault(), "%02d:%02d", TimeUnit.MILLISECONDS.toMinutes(getTotalDuration), TimeUnit.MILLISECONDS.toSeconds(getTotalDuration) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(getTotalDuration)));
+            MusicList musicList = musicLists.get(position);
+            updateBottomCardView(musicList);
 
+            progressBar = findViewById(R.id.media_player_bar_progress_indicator);
+            currentSongListPosition = position;
 
-            isPlaying = true;
+            if (mediaPlayer != null) {
+                try {
+                    mediaPlayer.reset();
+                    mediaPlayer.setAudioAttributes(
+                            new AudioAttributes.Builder()
+                                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                                    .build());
+                    mediaPlayer.setDataSource(MainActivity.this, musicList.getMusicFile());
+                    mediaPlayer.prepareAsync();
 
+                    mediaPlayer.setOnPreparedListener(mp -> {
+                        if (progressBar != null) {
+                            progressBar.setMax(mediaPlayer.getDuration());
+                        }
+                        isPlaying = true;
+                        startPlayback();
+                    });
 
+                    mediaPlayer.setOnCompletionListener(mp -> {
+                        synchronized (mediaPlayerLock) {
+                            mediaPlayer.reset();
+                            if (timer != null) {
+                                timer.purge();
+                                timer.cancel();
+                            }
+                            isPlaying = false;
 
-        });
+                            int nextSongListPosition = currentSongListPosition + 1;
+                            if (nextSongListPosition >= musicLists.size()) {
+                                nextSongListPosition = 0;
+                            }
 
-        try {
-            Thread.sleep(100); // 100ms delay to prevent event state overriding each other and cause a crash
-            mediaPlayer.start();
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-        }
+                            musicLists.get(currentSongListPosition).setPlaying(false);
+                            musicLists.get(nextSongListPosition).setPlaying(true);
 
-        timer = new Timer();
+                            if (musicAdapter != null) {
+                                musicAdapter.updateList(musicLists);
+                            }
 
-        timer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
+                            if (musicRecyclerView != null) {
+                                musicRecyclerView.scrollToPosition(nextSongListPosition);
+                            }
 
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
+                            onChanged(nextSongListPosition);
+                        }
+                    });
 
-                        final int getCurrentDuration = mediaPlayer.getCurrentPosition();
-
-                        String generateDuration = String.format(Locale.getDefault(), "%02d:%02d", TimeUnit.MILLISECONDS.toMinutes(getCurrentDuration), TimeUnit.MILLISECONDS.toSeconds(getCurrentDuration) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(getCurrentDuration)));
-
-
-                    }
-                });
-            }
-        }, 1000, 1000);
-
-        mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-            @Override
-            public void onCompletion(MediaPlayer mp) {
-                mediaPlayer.reset();
-
-                timer.purge();
-                timer.cancel();
-
-                isPlaying = false;
-
-
-
-                int nextSongListPosition = currentSongListPosition+1;
-
-                if(nextSongListPosition >= musicLists.size()) {
-                    nextSongListPosition = 0;
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    Toast.makeText(MainActivity.this, "Unable to play track", Toast.LENGTH_SHORT).show();
+                } catch (IllegalStateException e) {
+                    e.printStackTrace();
+                    Toast.makeText(MainActivity.this, "Player in invalid state", Toast.LENGTH_SHORT).show();
                 }
-
-                musicLists.get(currentSongListPosition).setPlaying(false);
-                musicLists.get(nextSongListPosition).setPlaying(true);
-
-                musicAdapter.updateList(musicLists);
-
-                musicRecyclerView.scrollToPosition(nextSongListPosition);
-
-                onChanged(nextSongListPosition);
-
-
-
             }
-        });
+        }
     }
 
     @Override
@@ -644,9 +663,19 @@ public class MainActivity extends AppCompatActivity implements SongChangeListene
     protected void onDestroy() {
         super.onDestroy();
         if (mediaPlayer != null) {
+            if (isPlaying) {
+                mediaPlayer.stop();
+            }
             mediaPlayer.release();
             mediaPlayer = null;
         }
+        if (timer != null) {
+            timer.purge();
+            timer.cancel();
+            timer = null;
+        }
+        stopUpdatingProgressBar();
+        handler.removeCallbacksAndMessages(null);
     }
 
 
